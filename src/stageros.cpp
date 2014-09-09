@@ -163,24 +163,30 @@ StageNode::mapName(const char *name, size_t robotID, Stg::Model* mod, int modelI
   const bool umn = this->use_model_names;
   const bool ssi = (modelID >= 0); // sub_sensor_index
 
-  if ((positionmodels.size() > 1 ) || umn || ssi)
+  if ((positionmodels.size() > 1) || umn || ssi)
   {
     static char buf[100];
     std::size_t found = std::string(((Stg::Ancestor *) mod)->Token()).find(":");
 
     if ((found == std::string::npos) && umn)
     {
-      if (ssi) {
+      if (ssi)
+      {
         snprintf(buf, sizeof(buf), "/%s/%s/%u", ((Stg::Ancestor *) mod)->Token(), name, (unsigned int) modelID);
-      } else {
+      }
+      else
+      {
         snprintf(buf, sizeof(buf), "/%s/%s", ((Stg::Ancestor *) mod)->Token(), name);
       }
     }
     else
     {
-      if (ssi) {
+      if (ssi)
+      {
         snprintf(buf, sizeof(buf), "/robot_%u/%s/%u", (unsigned int)robotID, name, (unsigned int) modelID);
-      } else {
+      }
+      else
+      {
         snprintf(buf, sizeof(buf), "/robot_%u/%s", (unsigned int)robotID, name);
       }
     }
@@ -273,12 +279,14 @@ StageNode::StageNode(int argc, char** argv, bool gui, const char* fname, bool us
 
   size_t numRobots = positionmodels.size();
   this->num_lasers_per_robot = lasermodels.size() / positionmodels.size();
-  ROS_INFO("found %u position and laser(%u)/camera(%u) pair%s in the file", 
-           (unsigned int)numRobots, (unsigned int) lasermodels.size(), (unsigned int) cameramodels.size(), (numRobots==1) ? "" : "s");
+  ROS_INFO("found %u position and laser(%u)/camera(%u) pair%s in the file",
+           (unsigned int)numRobots, (unsigned int) lasermodels.size(), (unsigned int) cameramodels.size(), (numRobots == 1) ? "" : "s");
 
   // TODO: Check if vector::resize() will do the job
-  for (std::size_t r = 0; r < numRobots; r++) {
-    for (std::size_t l = 0; l < this->num_lasers_per_robot; l++) {
+  for (std::size_t r = 0; r < numRobots; r++)
+  {
+    for (std::size_t l = 0; l < this->num_lasers_per_robot; l++)
+    {
       laserMsgs.push_back(sensor_msgs::LaserScan());
     }
     odomMsgs.push_back(nav_msgs::Odometry());
@@ -304,22 +312,23 @@ StageNode::SubscribeModels()
   ROS_WARN("[SUB] Num Laser Models: %u (%d)", lasermodels.size(), num_lasers_per_robot);
   for (size_t r = 0; r < this->positionmodels.size(); r++)
   {
-    for (std::size_t l = 0; l < this->num_lasers_per_robot; l++) {
+    for (std::size_t l = 0; l < this->num_lasers_per_robot; l++)
+    {
       const std::size_t index = (r * num_lasers_per_robot) + l;
       ROS_INFO("  index: %d", index);
-      if(this->lasermodels.size()>index && this->lasermodels[index])
+      if (this->lasermodels.size() > index && this->lasermodels[index])
       {
         this->lasermodels[index]->Subscribe();
-        laser_pubs_.push_back(n_.advertise<sensor_msgs::LaserScan>(mapName(BASE_SCAN,r,static_cast<Stg::Model*>(positionmodels[r]), l), 10));
+        laser_pubs_.push_back(n_.advertise<sensor_msgs::LaserScan>(mapName(BASE_SCAN, r, static_cast<Stg::Model*>(positionmodels[r]), l), 10));
       }
-      else if (this->lasermodels.size()>0)
+      else if (this->lasermodels.size() > 0)
       {
         ROS_ERROR("no laser");
         return(-1);
       }
     }
 
-    if(this->positionmodels[r])
+    if (this->positionmodels[r])
     {
       this->positionmodels[r]->Subscribe();
     }
@@ -338,13 +347,14 @@ StageNode::SubscribeModels()
       return(-1);
     }
     //if (this->lasermodels.size()>r)
-      //laser_pubs_.push_back(n_.advertise<sensor_msgs::LaserScan>(mapName(BASE_SCAN,r,static_cast<Stg::Model*>(positionmodels[r])), 10));
-      odom_pubs_.push_back(n_.advertise<nav_msgs::Odometry>(mapName(ODOM,r,static_cast<Stg::Model*>(positionmodels[r])), 10));
-      ground_truth_pubs_.push_back(n_.advertise<nav_msgs::Odometry>(mapName(BASE_POSE_GROUND_TRUTH,r,static_cast<Stg::Model*>(positionmodels[r])), 10));
-    if (this->cameramodels.size()>r){
-      image_pubs_.push_back(n_.advertise<sensor_msgs::Image>(mapName(IMAGE,r,static_cast<Stg::Model*>(positionmodels[r])), 10));
-      depth_pubs_.push_back(n_.advertise<sensor_msgs::Image>(mapName(DEPTH,r,static_cast<Stg::Model*>(positionmodels[r])), 10));
-      camera_pubs_.push_back(n_.advertise<sensor_msgs::CameraInfo>(mapName(CAMERA_INFO,r,static_cast<Stg::Model*>(positionmodels[r])), 10));
+    //laser_pubs_.push_back(n_.advertise<sensor_msgs::LaserScan>(mapName(BASE_SCAN,r,static_cast<Stg::Model*>(positionmodels[r])), 10));
+    odom_pubs_.push_back(n_.advertise<nav_msgs::Odometry>(mapName(ODOM, r, static_cast<Stg::Model*>(positionmodels[r])), 10));
+    ground_truth_pubs_.push_back(n_.advertise<nav_msgs::Odometry>(mapName(BASE_POSE_GROUND_TRUTH, r, static_cast<Stg::Model*>(positionmodels[r])), 10));
+    if (this->cameramodels.size() > r)
+    {
+      image_pubs_.push_back(n_.advertise<sensor_msgs::Image>(mapName(IMAGE, r, static_cast<Stg::Model*>(positionmodels[r])), 10));
+      depth_pubs_.push_back(n_.advertise<sensor_msgs::Image>(mapName(DEPTH, r, static_cast<Stg::Model*>(positionmodels[r])), 10));
+      camera_pubs_.push_back(n_.advertise<sensor_msgs::CameraInfo>(mapName(CAMERA_INFO, r, static_cast<Stg::Model*>(positionmodels[r])), 10));
     }
     cmdvel_subs_.push_back(n_.subscribe<geometry_msgs::Twist>(mapName(CMD_VEL, r, static_cast<Stg::Model*>(positionmodels[r])), 10, boost::bind(&StageNode::cmdvelReceived, this, r, _1)));
   }
@@ -386,36 +396,38 @@ StageNode::WorldCallback()
   }
 
   // Get latest laser data
-  for (size_t r = 0; r < this->positionmodels.size(); r++) {
-    for (std::size_t l = 0; l < this->num_lasers_per_robot; l++) {
+  for (size_t r = 0; r < this->positionmodels.size(); r++)
+  {
+    for (std::size_t l = 0; l < this->num_lasers_per_robot; l++)
+    {
       const std::size_t index = (r * num_lasers_per_robot) + l;
       const std::vector<Stg::ModelRanger::Sensor>& sensors = this->lasermodels[index]->GetSensors();
 
-      if( sensors.size() > 1 )
-        ROS_WARN( "ROS Stage currently supports rangers with 1 sensor only." );
+      if (sensors.size() > 1)
+        ROS_WARN("ROS Stage currently supports rangers with 1 sensor only.");
 
       // for now we access only the zeroth sensor of the ranger - good
       // enough for most laser models that have a single beam origin
       const Stg::ModelRanger::Sensor& s = sensors[0];
 
-      if( s.ranges.size() )
+      if (s.ranges.size())
       {
         // Translate into ROS message format and publish
-        this->laserMsgs[index].angle_min = -s.fov/2.0;
-        this->laserMsgs[index].angle_max = +s.fov/2.0;
-        this->laserMsgs[index].angle_increment = s.fov/(double)(s.sample_count-1);
+        this->laserMsgs[index].angle_min = -s.fov / 2.0;
+        this->laserMsgs[index].angle_max = +s.fov / 2.0;
+        this->laserMsgs[index].angle_increment = s.fov / (double)(s.sample_count - 1);
         this->laserMsgs[index].range_min = s.range.min;
         this->laserMsgs[index].range_max = s.range.max;
         this->laserMsgs[index].ranges.resize(s.ranges.size());
         this->laserMsgs[index].intensities.resize(s.intensities.size());
 
-        for(unsigned int i=0; i<s.ranges.size(); i++)
+        for (unsigned int i = 0; i < s.ranges.size(); i++)
         {
           this->laserMsgs[index].ranges[i] = s.ranges[i];
           this->laserMsgs[index].intensities[i] = (uint8_t)s.intensities[i];
         }
 
-        this->laserMsgs[index].header.frame_id = mapName("base_laser_link", r,static_cast<Stg::Model*>(positionmodels[r]), l);
+        this->laserMsgs[index].header.frame_id = mapName("base_laser_link", r, static_cast<Stg::Model*>(positionmodels[r]), l);
         this->laserMsgs[index].header.stamp = sim_time;
         this->laser_pubs_[index].publish(this->laserMsgs[index]);
       }
@@ -426,15 +438,15 @@ StageNode::WorldCallback()
       tf::Quaternion laserQ;
       laserQ.setRPY(0.0, 0.0, lp.a);
       tf::Transform txLaser =  tf::Transform(laserQ,
-                                             tf::Point(lp.x, lp.y, this->positionmodels[index]->GetGeom().size.z+lp.z));
+                                             tf::Point(lp.x, lp.y, this->positionmodels[index]->GetGeom().size.z + lp.z));
       tf.sendTransform(tf::StampedTransform(txLaser, sim_time,
-                                            mapName("base_link", r,static_cast<Stg::Model*>(positionmodels[index]), l),
-                                            mapName("base_laser_link", r,static_cast<Stg::Model*>(positionmodels[index]), l)));
+                                            mapName("base_link", r, static_cast<Stg::Model*>(positionmodels[index]), l),
+                                            mapName("base_laser_link", r, static_cast<Stg::Model*>(positionmodels[index]), l)));
     }
   }
-    
-    for (size_t r = 0; r < this->positionmodels.size(); r++)
-		{
+
+  for (size_t r = 0; r < this->positionmodels.size(); r++)
+  {
     // Send the identity transform between base_footprint and base_link
     tf::Transform txIdentity(tf::createIdentityQuaternion(),
                              tf::Point(0, 0, 0));

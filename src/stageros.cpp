@@ -438,10 +438,11 @@ StageNode::WorldCallback()
       tf::Quaternion laserQ;
       laserQ.setRPY(0.0, 0.0, lp.a);
       tf::Transform txLaser =  tf::Transform(laserQ,
-                                             tf::Point(lp.x, lp.y, this->positionmodels[index]->GetGeom().size.z + lp.z));
+                                             tf::Point(lp.x, lp.y, this->positionmodels[r]->GetGeom().size.z + lp.z));
+      // TODO: Comment
       tf.sendTransform(tf::StampedTransform(txLaser, sim_time,
-                                            mapName("base_link", r, static_cast<Stg::Model*>(positionmodels[index]), l),
-                                            mapName("base_laser_link", r, static_cast<Stg::Model*>(positionmodels[index]), l)));
+                                            mapName("base_link", r, static_cast<Stg::Model*>(positionmodels[r])),
+                                            mapName("base_laser_link", r, static_cast<Stg::Model*>(positionmodels[r]), l)));
     }
   }
 

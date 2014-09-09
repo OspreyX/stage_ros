@@ -65,11 +65,14 @@ class StageNode
 {
 private:
   // Messages that we'll send or receive
-  sensor_msgs::CameraInfo *cameraMsgs;
-  sensor_msgs::Image *imageMsgs;
-  sensor_msgs::Image *depthMsgs;
-  sensor_msgs::LaserScan *laserMsgs;
-  nav_msgs::Odometry *odomMsgs;
+  // vector of size num_robots in the world file
+  // TODO: Check if using pointer is advatageous
+  std::vector<sensor_msgs::CameraInfo> cameraMsgs;
+  std::vector<sensor_msgs::Image> imageMsgs;
+  std::vector<sensor_msgs::Image> depthMsgs;
+  std::vector<sensor_msgs::LaserScan> laserMsgs;
+  std::vector<nav_msgs::Odometry> odomMsgs;
+
   nav_msgs::Odometry *groundTruthMsgs;
   rosgraph_msgs::Clock clockMsg;
 
@@ -257,12 +260,15 @@ StageNode::StageNode(int argc, char** argv, bool gui, const char* fname, bool us
   ROS_INFO("found %u position and laser(%u)/camera(%u) pair%s in the file",
            (unsigned int)numRobots, (unsigned int) lasermodels.size(), (unsigned int) cameramodels.size(), (numRobots == 1) ? "" : "s");
 
-  this->laserMsgs = new sensor_msgs::LaserScan[numRobots];
-  this->odomMsgs = new nav_msgs::Odometry[numRobots];
-  this->groundTruthMsgs = new nav_msgs::Odometry[numRobots];
-  this->imageMsgs = new sensor_msgs::Image[numRobots];
-  this->depthMsgs = new sensor_msgs::Image[numRobots];
-  this->cameraMsgs = new sensor_msgs::CameraInfo[numRobots];
+  // TODO: Check if vector::resize() will do the job
+  for (std::size_t r = 0; r < numRobots; r++) {
+    laserMsgs.push_back(sensor_msgs::LaserScan());
+    odomMsgs.push_back(nav_msgs::Odometry());
+    groundTruthMsgs.push_back(nav_msgs::Odometry());
+    imageMsgs.push_back(sensor_msgs::Image());
+    depthMsgs.push_back(sensor_msgs::Image());
+    cameraMsgs.push_back(sensor_msgs::CameraInfo());
+  }
 }
 
 
@@ -324,12 +330,7 @@ StageNode::SubscribeModels()
 
 StageNode::~StageNode()
 {
-  delete[] laserMsgs;
-  delete[] odomMsgs;
-  delete[] groundTruthMsgs;
-  delete[] imageMsgs;
-  delete[] depthMsgs;
-  delete[] cameraMsgs;
+  // TODO: Check for memory leaks of new std::vectors (e.g. laserMsgs)
 }
 
 bool

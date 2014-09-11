@@ -59,6 +59,7 @@
 #define BASE_SCAN "base_scan"
 #define BASE_POSE_GROUND_TRUTH "base_pose_ground_truth"
 #define CMD_VEL "cmd_vel"
+#define CMD_ACC "cmd_acc"
 
 // Our node
 class StageNode
@@ -95,6 +96,7 @@ private:
   std::vector<ros::Publisher> odom_pubs_;
   std::vector<ros::Publisher> ground_truth_pubs_;
   std::vector<ros::Subscriber> cmdvel_subs_;
+  std::vector<ros::Subscriber> cmdacc_subs_;
   ros::Publisher clock_pub_;
 
   bool isDepthCanonical;
@@ -151,6 +153,9 @@ public:
 
   // Message callback for a MsgBaseVel message, which set velocities.
   void cmdvelReceived(int idx, const boost::shared_ptr<geometry_msgs::Twist const>& msg);
+
+  // Message callback for a MsgBaseAcc message, which set accelerations.
+  void cmdaccReceived(int idx, const boost::shared_ptr<geometry_msgs::Twist const>& msg);
 
   // The main simulator object
   Stg::World* world;
@@ -214,6 +219,16 @@ StageNode::cmdvelReceived(int idx, const boost::shared_ptr<geometry_msgs::Twist 
 {
   boost::mutex::scoped_lock lock(msg_lock);
   this->positionmodels[idx]->SetSpeed(msg->linear.x,
+                                      msg->linear.y,
+                                      msg->angular.z);
+  this->base_last_cmd = this->sim_time;
+}
+
+void
+StageNode::cmdaccReceived(int idx, const boost::shared_ptr<geometry_msgs::Twist const>& msg)
+{
+  boost::mutex::scoped_lock lock(msg_lock);
+  this->positionmodels[idx]->SetAcceleration(msg->linear.x,
                                       msg->linear.y,
                                       msg->angular.z);
   this->base_last_cmd = this->sim_time;
@@ -357,6 +372,7 @@ StageNode::SubscribeModels()
       camera_pubs_.push_back(n_.advertise<sensor_msgs::CameraInfo>(mapName(CAMERA_INFO, r, static_cast<Stg::Model*>(positionmodels[r])), 10));
     }
     cmdvel_subs_.push_back(n_.subscribe<geometry_msgs::Twist>(mapName(CMD_VEL, r, static_cast<Stg::Model*>(positionmodels[r])), 10, boost::bind(&StageNode::cmdvelReceived, this, r, _1)));
+    cmdacc_subs_.push_back(n_.subscribe<geometry_msgs::Twist>(mapName(CMD_ACC, r, static_cast<Stg::Model*>(positionmodels[r])), 10, boost::bind(&StageNode::cmdaccReceived, this, r, _1)));
   }
   clock_pub_ = n_.advertise<rosgraph_msgs::Clock>("/clock", 10);
   return(0);

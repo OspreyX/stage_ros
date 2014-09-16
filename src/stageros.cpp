@@ -167,40 +167,29 @@ StageNode::mapName(const char *name, size_t robotID, Stg::Model* mod, int modelI
 {
   const bool umn = this->use_model_names;
   const bool ssi = (modelID >= 0); // sub_sensor_index
+  static char prefix[100];
+  static char buf[100];
 
-  if ((positionmodels.size() > 1) || umn || ssi)
-  {
-    static char buf[100];
+  // prefix
+  if ((positionmodels.size() > 1) || umn) {
     std::size_t found = std::string(((Stg::Ancestor *) mod)->Token()).find(":");
+    if ((found == std::string::npos) && umn) {
+      snprintf(prefix, sizeof(prefix), "/%s", ((Stg::Ancestor *) mod)->Token());
+    } else {
+      snprintf(prefix, sizeof(prefix), "/robot_%u", (unsigned int) robotID);
+    }
+  } else {
+    // TODO: Can we do better?
+    snprintf(prefix, sizeof(prefix), "%s", "");
+  }
 
-    if ((found == std::string::npos) && umn)
-    {
-      if (ssi)
-      {
-        snprintf(buf, sizeof(buf), "/%s/%s/%u", ((Stg::Ancestor *) mod)->Token(), name, (unsigned int) modelID);
-      }
-      else
-      {
-        snprintf(buf, sizeof(buf), "/%s/%s", ((Stg::Ancestor *) mod)->Token(), name);
-      }
-    }
-    else
-    {
-      if (ssi)
-      {
-        snprintf(buf, sizeof(buf), "/robot_%u/%s/%u", (unsigned int)robotID, name, (unsigned int) modelID);
-      }
-      else
-      {
-        snprintf(buf, sizeof(buf), "/robot_%u/%s", (unsigned int)robotID, name);
-      }
-    }
-    return buf;
+  if (ssi) {
+    snprintf(buf, sizeof(buf), "%s/%s/%u", prefix, name, (unsigned int) modelID);
+  } else {
+    snprintf(buf, sizeof(buf), "%s/%s", prefix, name);
   }
-  else
-  {
-    return name;
-  }
+
+  return buf;
 }
 
 void

@@ -101,6 +101,8 @@ private:
 
   bool isDepthCanonical;
   bool use_model_names;
+  bool publish_odom_tf;
+  bool publish_footprint_tf;
 
   // A helper function that is executed for each stage model.  We use it
   // to search for models of interest.
@@ -237,6 +239,11 @@ StageNode::StageNode(int argc, char** argv, bool gui, const char* fname, bool us
   if (!localn.getParam("is_depth_canonical", isDepthCanonical))
     isDepthCanonical = true;
 
+  if (!localn.getParam("publish_odom_tf", publish_odom_tf))
+    publish_odom_tf = true;
+
+  if (!localn.getParam("publish_footprint_tf", publish_footprint_tf))
+    publish_footprint_tf = true;
 
   // We'll check the existence of the world file, because libstage doesn't
   // expose its failure to open it.  Could go further with checks (e.g., is
@@ -454,12 +461,14 @@ StageNode::WorldCallback()
   for (size_t r = 0; r < this->positionmodels.size(); r++)
   {
     // Send the identity transform between base_footprint and base_link
-    tf::Transform txIdentity(tf::createIdentityQuaternion(),
-                             tf::Point(0, 0, 0));
-    tf.sendTransform(tf::StampedTransform(txIdentity,
-                                          sim_time,
-                                          mapName("base_footprint", r, static_cast<Stg::Model*>(positionmodels[r])),
-                                          mapName("base_link", r, static_cast<Stg::Model*>(positionmodels[r]))));
+    if (publish_footprint_tf) {
+      tf::Transform txIdentity(tf::createIdentityQuaternion(),
+                               tf::Point(0, 0, 0));
+      tf.sendTransform(tf::StampedTransform(txIdentity,
+                                            sim_time,
+                                            mapName("base_footprint", r, static_cast<Stg::Model*>(positionmodels[r])),
+                                            mapName("base_link", r, static_cast<Stg::Model*>(positionmodels[r]))));
+    }
 
     // Get latest odometry data
     // Translate into ROS message format and publish
@@ -480,15 +489,17 @@ StageNode::WorldCallback()
     this->odom_pubs_[r].publish(this->odomMsgs[r]);
 
     // broadcast odometry transform
-    tf::Quaternion odomQ;
-    tf::quaternionMsgToTF(odomMsgs[r].pose.pose.orientation, odomQ);
-    tf::Transform txOdom(odomQ,
-                         tf::Point(odomMsgs[r].pose.pose.position.x,
-                                   odomMsgs[r].pose.pose.position.y, 0.0));
-    tf.sendTransform(tf::StampedTransform(txOdom, sim_time,
-                                          mapName("odom", r, static_cast<Stg::Model*>(positionmodels[r])),
-                                          mapName("base_footprint", r, static_cast<Stg::Model*>(positionmodels[r]))));
-
+    if (publish_odom_tf) {
+      tf::Quaternion odomQ;
+      tf::quaternionMsgToTF(odomMsgs[r].pose.pose.orientation, odomQ);
+      tf::Transform txOdom(odomQ,
+                           tf::Point(odomMsgs[r].pose.pose.position.x,
+                                     odomMsgs[r].pose.pose.position.y, 0.0));
+      const std::string target_frame = publish_footprint_tf ? "base_footprint" : "base_link";
+      tf.sendTransform(tf::StampedTransform(txOdom, sim_time,
+                                            mapName("odom", r, static_cast<Stg::Model*>(positionmodels[r])),
+                                            mapName(target_frame.c_str() , r, static_cast<Stg::Model*>(positionmodels[r]))));
+    }
     // Also publish the ground truth pose and velocity
     Stg::Pose gpose = this->positionmodels[r]->GetGlobalPose();
     tf::Quaternion q_gpose;

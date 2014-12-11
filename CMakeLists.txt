@@ -29,10 +29,17 @@ include_directories(
   ${Stage_INCLUDE_DIRS}
 )
 
+add_message_files(FILES
+  Flag.msg
+  Flags.msg
+)
+
+generate_messages(DEPENDENCIES std_msgs)
+
 catkin_package(
   INCLUDE_DIRS ${Stage_INCLUDE_DIRS}
   LIBRARIES stage_ros ${Stage_LIBRARIES}
-  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp sensor_msgs std_msgs tf
+  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp sensor_msgs std_msgs tf message_runtime
   DEPENDS Boost
 )
 
@@ -42,6 +49,8 @@ target_link_libraries(stageros ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${FLTK_LIB
 if(catkin_EXPORTED_TARGETS)
 	add_dependencies(stageros ${catkin_EXPORTED_TARGETS})
 endif()
+
+add_dependencies(stageros ${PROJECT_NAME}_generate_messages_cpp)
 
 ## Install
 

@@ -51,6 +51,11 @@
 
 #include "tf/transform_broadcaster.h"
 
+// msgs
+
+#include "stage_ros/Flags.h"
+#include "pr2_msgs/PowerState.h"
+
 #define USAGE "stageros <worldfile>"
 #define IMAGE "image"
 #define DEPTH "depth"
@@ -58,6 +63,8 @@
 #define ODOM "odom"
 #define BASE_SCAN "base_scan"
 #define BASE_POSE_GROUND_TRUTH "base_pose_ground_truth"
+#define FLAGS "flags"
+#define POWER_STATUS "power_status"
 #define CMD_VEL "cmd_vel"
 #define CMD_ACC "cmd_acc"
 
@@ -74,6 +81,10 @@ private:
   std::vector<sensor_msgs::LaserScan> laserMsgs;
   std::vector<nav_msgs::Odometry> odomMsgs;
   std::vector<nav_msgs::Odometry> groundTruthMsgs;
+  std::vector<stage_ros::Flags> flagsMsgs;
+  std::vector<pr2_msgs::PowerState> powerMsgs;
+  // Cache for power calculations
+  std::vector<Stg::joules_t> last_dissipated_;
 
   int num_lasers_per_robot;
 
@@ -95,6 +106,8 @@ private:
   std::vector<ros::Publisher> laser_pubs_;
   std::vector<ros::Publisher> odom_pubs_;
   std::vector<ros::Publisher> ground_truth_pubs_;
+  std::vector<ros::Publisher> flags_pubs_;
+  std::vector<ros::Publisher> power_pubs_;
   std::vector<ros::Subscriber> cmdvel_subs_;
   std::vector<ros::Subscriber> cmdacc_subs_;
   ros::Publisher clock_pub_;
@@ -293,7 +306,6 @@ StageNode::StageNode(int argc, char** argv, bool gui, const char* fname, bool us
   ROS_INFO("found %u position and laser(%u)/camera(%u) pair%s in the file",
            (unsigned int)numRobots, (unsigned int) lasermodels.size(), (unsigned int) cameramodels.size(), (numRobots == 1) ? "" : "s");
 
-  // TODO: Check if vector::resize() will do the job
   for (std::size_t r = 0; r < numRobots; r++)
   {
     for (std::size_t l = 0; l < this->num_lasers_per_robot; l++)
@@ -305,6 +317,10 @@ StageNode::StageNode(int argc, char** argv, bool gui, const char* fname, bool us
     imageMsgs.push_back(sensor_msgs::Image());
     depthMsgs.push_back(sensor_msgs::Image());
     cameraMsgs.push_back(sensor_msgs::CameraInfo());
+    flagsMsgs.push_back(stage_ros::Flags());
+    powerMsgs.push_back(pr2_msgs::PowerState());
+    powerMsgs[r].prediction_method = std::string("Simple Extrapolation +LPF");
+    last_dissipated_.push_back(0.0);
   }
 }
 
@@ -320,13 +336,13 @@ StageNode::SubscribeModels()
 {
   n_.setParam("/use_sim_time", true);
 
-  ROS_WARN("[SUB] Num Laser Models: %u (%d)", lasermodels.size(), num_lasers_per_robot);
+  ROS_WARN("[SUB] Num Laser Models: %lu (%d)", lasermodels.size(), num_lasers_per_robot);
   for (size_t r = 0; r < this->positionmodels.size(); r++)
   {
     for (std::size_t l = 0; l < this->num_lasers_per_robot; l++)
     {
       const std::size_t index = (r * num_lasers_per_robot) + l;
-      ROS_INFO("  index: %d", index);
+      ROS_INFO("  index: %lu", index);
       if (this->lasermodels.size() > index && this->lasermodels[index])
       {
         this->lasermodels[index]->Subscribe();
@@ -361,6 +377,8 @@ StageNode::SubscribeModels()
     //laser_pubs_.push_back(n_.advertise<sensor_msgs::LaserScan>(mapName(BASE_SCAN,r,static_cast<Stg::Model*>(positionmodels[r])), 10));
     odom_pubs_.push_back(n_.advertise<nav_msgs::Odometry>(mapName(ODOM, r, static_cast<Stg::Model*>(positionmodels[r])), 10));
     ground_truth_pubs_.push_back(n_.advertise<nav_msgs::Odometry>(mapName(BASE_POSE_GROUND_TRUTH, r, static_cast<Stg::Model*>(positionmodels[r])), 10));
+    flags_pubs_.push_back(n_.advertise<stage_ros::Flags>(mapName(FLAGS, r, static_cast<Stg::Model*>(positionmodels[r])), 10));
+    power_pubs_.push_back(n_.advertise<pr2_msgs::PowerState>(mapName(POWER_STATUS, r, static_cast<Stg::Model*>(positionmodels[r])), 10));
     if (this->cameramodels.size() > r)
     {
       image_pubs_.push_back(n_.advertise<sensor_msgs::Image>(mapName(IMAGE, r, static_cast<Stg::Model*>(positionmodels[r])), 10));
@@ -376,7 +394,6 @@ StageNode::SubscribeModels()
 
 StageNode::~StageNode()
 {
-  // TODO: Check for memory leaks of new std::vectors (e.g. laserMsgs)
 }
 
 bool
@@ -469,6 +486,48 @@ StageNode::WorldCallback()
                                             mapName("base_footprint", r, static_cast<Stg::Model*>(positionmodels[r])),
                                             mapName("base_link", r, static_cast<Stg::Model*>(positionmodels[r]))));
     }
+
+    // Publish Flags attached to position model
+    // Needs this patch: https://github.com/clearpathrobotics/stage-release.git 8b1e5d0
+    const std::list<Stg::Model::Flag*>& position_flags = this->positionmodels[r]->GetFlagList();
+    ROS_INFO("Robot %lu Flags: %lu", r, position_flags.size());
+    flagsMsgs[r].header.stamp = ros::Time::now();
+    flagsMsgs[r].flags.resize(position_flags.size());
+    std::size_t flag_index = 0;
+    for (std::list<Stg::Model::Flag*>::const_iterator flag_ptrptr = position_flags.begin();
+         flag_ptrptr != position_flags.end(); flag_ptrptr++, flag_index++)
+    {
+      const Stg::Color stg_color = (*flag_ptrptr)->GetColor();
+      flagsMsgs[r].flags[flag_index].size = (*flag_ptrptr)->GetSize();
+      flagsMsgs[r].flags[flag_index].color.r = stg_color.r;
+      flagsMsgs[r].flags[flag_index].color.g = stg_color.g;
+      flagsMsgs[r].flags[flag_index].color.b = stg_color.b;
+      flagsMsgs[r].flags[flag_index].color.a = stg_color.a;
+    }
+
+    // Use previous header for last time
+    const double delta_t = (ros::Time::now() - powerMsgs[r].header.stamp).toSec();
+    const Stg::joules_t dissipated = this->positionmodels[r]->FindPowerPack()->GetDissipated();
+    powerMsgs[r].header.stamp = ros::Time::now();
+    if (delta_t > 0.0)
+    {
+      powerMsgs[r].power_consumption = (dissipated - last_dissipated_[r]) / delta_t;
+      if (powerMsgs[r].power_consumption > 0.0)
+      {
+        // Simple model for calculating remaining time
+        const double time_remaining = fabs(
+              this->positionmodels[r]->FindPowerPack()->GetStored() / powerMsgs[r].power_consumption);
+
+        // Smooth out the time calculation
+        powerMsgs[r].time_remaining = ros::Duration(
+              (0.3 * time_remaining) + (0.7 * powerMsgs[r].time_remaining.toSec()));
+      }
+    }
+    last_dissipated_[r] = dissipated;
+    powerMsgs[r].relative_capacity = static_cast<int8_t>(
+          this->positionmodels[r]->FindPowerPack()->ProportionRemaining() * 100.0);
+    powerMsgs[r].AC_present = this->positionmodels[r]->FindPowerPack()->GetCharging();
+    power_pubs_[r].publish(powerMsgs[r]);
 
     // Get latest odometry data
     // Translate into ROS message format and publish

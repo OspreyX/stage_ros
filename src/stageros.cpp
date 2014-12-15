@@ -490,7 +490,6 @@ StageNode::WorldCallback()
     // Publish Flags attached to position model
     // Needs this patch: https://github.com/clearpathrobotics/stage-release.git 8b1e5d0
     const std::list<Stg::Model::Flag*>& position_flags = this->positionmodels[r]->GetFlagList();
-    ROS_INFO("Robot %lu Flags: %lu", r, position_flags.size());
     flagsMsgs[r].header.stamp = ros::Time::now();
     flagsMsgs[r].flags.resize(position_flags.size());
     std::size_t flag_index = 0;
@@ -504,6 +503,7 @@ StageNode::WorldCallback()
       flagsMsgs[r].flags[flag_index].color.b = stg_color.b;
       flagsMsgs[r].flags[flag_index].color.a = stg_color.a;
     }
+    flags_pubs_[r].publish(flagsMsgs[r]);
 
     // Use previous header for last time
     const double delta_t = (ros::Time::now() - powerMsgs[r].header.stamp).toSec();
